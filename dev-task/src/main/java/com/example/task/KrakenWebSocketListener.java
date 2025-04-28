@@ -99,21 +99,21 @@ public class KrakenWebSocketListener implements WebSocket.Listener {
     OrderBook orderBook = orderBookHolder.get(snapshot.getPair());
     updateOrderBook(snapshot.getSnapshotAsks(), orderBook::updateAsk);
     updateOrderBook(snapshot.getSnapshotBids(), orderBook::updateBid);
-    orderBook.print();
+    orderBookHolder.printOrderBook();
   }
 
   private void handleUpdate(KrakenOrderBookUpdate update) {
     OrderBook orderBook = orderBookHolder.get(update.getPair());
     updateOrderBook(update.getAsks(), orderBook::updateAsk);
     updateOrderBook(update.getBids(), orderBook::updateBid);
-    orderBook.print();
+    orderBookHolder.printOrderBook();
   }
 
   private void handleTicker(KrakenTicker ticker) {
     OrderBook orderBook = orderBookHolder.get(ticker.getPair());
     orderBook.setBestAsk(buildPriceLevelTicker(ticker.getBestAsk()));
     orderBook.setBestBid(buildPriceLevelTicker(ticker.getBestBid()));
-    orderBook.print();
+    orderBookHolder.printOrderBook();
   }
 
   private void updateOrderBook(List<List<String>> priceLevels, Consumer<KrakenPriceLevel> updateMethod) {

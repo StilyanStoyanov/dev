@@ -17,13 +17,15 @@ import jakarta.annotation.PreDestroy;
 public class WebSocketClient {
   private static final String WEBSOCKET_URL = "wss://ws.kraken.com";
   private final CountDownLatch latch = new CountDownLatch(1);
+  private final KrakenWebSocketListener listener;
+
   private WebSocket webSocket;
 
   @PostConstruct
   public void start() {
     HttpClient client = HttpClient.newHttpClient();
     webSocket = client.newWebSocketBuilder()
-        .buildAsync(URI.create(WEBSOCKET_URL), new KrakenWebSocketListener())
+        .buildAsync(URI.create(WEBSOCKET_URL), listener)
         .join();
 
     System.out.println("WebSocket connection started");
