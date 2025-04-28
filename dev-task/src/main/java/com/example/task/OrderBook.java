@@ -2,6 +2,7 @@ package com.example.task;
 
 import com.example.task.model.KrakenPriceLevel;
 
+import lombok.Builder;
 import lombok.Getter;
 import lombok.Setter;
 

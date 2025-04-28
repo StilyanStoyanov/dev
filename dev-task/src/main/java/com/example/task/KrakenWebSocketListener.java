@@ -8,6 +8,7 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
 import org.springframework.stereotype.Service;
@@ -23,14 +24,14 @@ import java.util.function.Consumer;
 
 @Slf4j
 @Service
+@RequiredArgsConstructor
 public class KrakenWebSocketListener implements WebSocket.Listener {
   private static final String SUBSCRIPTION_MESSAGE = "{\"event\":\"subscribe\",\"pair\":[\"BTC/USD\",\"ETH/USD\"],\"subscription\":{\"name\":\"book\"}}";
   private static final String TICKER_SUBSCRIPTION = "{\"event\":\"subscribe\",\"pair\":[\"BTC/USD\",\"ETH/USD\"],\"subscription\":{\"name\":\"ticker\"}}";
+  private static final String TICKER = "ticker";
+  private static final String ORDER_BOOK = "book-10";
 
-  private static final Map<String, OrderBook> ORDER_BOOK_HOLDER = new ConcurrentHashMap<>();
-  public static final String ORDER_BOOK = "book-10";
-  public static final String TICKER = "ticker";
-
+  private final OrderBookHolder orderBookHolder;
   private final ObjectMapper objectMapper = new ObjectMapper();
 
   @Override
@@ -42,12 +43,7 @@ public class KrakenWebSocketListener implements WebSocket.Listener {
 
   @Override
   public CompletionStage<?> onText(WebSocket webSocket, CharSequence data, boolean last) {
-    try {
-      handleMessage(data.toString());
-    } catch (JsonProcessingException e) {
-      log.error("Error processing JSON message: {}", e.getMessage(), e);
-      throw new RuntimeException(e);
-    }
+    handleMessage(data.toString());
     return WebSocket.Listener.super.onText(webSocket, data, last);
   }
 
@@ -74,11 +70,11 @@ public class KrakenWebSocketListener implements WebSocket.Listener {
     WebSocket.Listener.super.onError(webSocket, error);
   }
 
-  private void handleMessage(String message) throws JsonProcessingException {
+  private void handleMessage(String message) {
     try {
       JsonNode rootNode = objectMapper.readTree(message);
-      JsonNode channelName = rootNode.get(2);
       JsonNode dataNode = rootNode.get(1);
+      JsonNode channelName = rootNode.get(2);
       if (null != channelName && ORDER_BOOK.equals(channelName.asText())) {
         if (dataNode.has("as") && dataNode.has("bs")) {
           KrakenOrderBookSnapshot snapshot = objectMapper.treeToValue(dataNode, KrakenOrderBookSnapshot.class);
@@ -100,23 +96,24 @@ public class KrakenWebSocketListener implements WebSocket.Listener {
   }
 
   private void handleSnapshot(KrakenOrderBookSnapshot snapshot) {
-    OrderBook orderBook = ORDER_BOOK_HOLDER.computeIfAbsent(snapshot.getPair(), OrderBook::new);
+    OrderBook orderBook = orderBookHolder.get(snapshot.getPair());
     updateOrderBook(snapshot.getSnapshotAsks(), orderBook::updateAsk);
     updateOrderBook(snapshot.getSnapshotBids(), orderBook::updateBid);
     orderBook.print();
   }
 
   private void handleUpdate(KrakenOrderBookUpdate update) {
-    OrderBook orderBook = ORDER_BOOK_HOLDER.get(update.getPair());
+    OrderBook orderBook = orderBookHolder.get(update.getPair());
     updateOrderBook(update.getAsks(), orderBook::updateAsk);
     updateOrderBook(update.getBids(), orderBook::updateBid);
     orderBook.print();
   }
 
   private void handleTicker(KrakenTicker ticker) {
-    OrderBook orderBook = ORDER_BOOK_HOLDER.computeIfAbsent(ticker.getPair(), OrderBook::new);
+    OrderBook orderBook = orderBookHolder.get(ticker.getPair());
     orderBook.setBestAsk(buildPriceLevelTicker(ticker.getBestAsk()));
     orderBook.setBestBid(buildPriceLevelTicker(ticker.getBestBid()));
+    orderBook.print();
   }
 
   private void updateOrderBook(List<List<String>> priceLevels, Consumer<KrakenPriceLevel> updateMethod) {
